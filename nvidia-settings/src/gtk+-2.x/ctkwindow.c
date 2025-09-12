@@ -43,6 +43,7 @@
 #include "ctkcolorcorrection.h"
 #include "ctkcolorcorrectionpage.h"
 #include "ctkxvideo.h"
+#include "ctkprime.h"
 #include "ctkopengl.h"
 #include "ctkglx.h"
 #include "ctkmultisample.h"
@@ -165,7 +166,7 @@ GType ctk_window_get_type(void)
     }
 
     return ctk_window_type;
-    
+
 } /* ctk_window_get_type() */
 
 
@@ -422,12 +423,12 @@ static void tree_selection_changed(GtkTreeSelection *selection,
 
     ctk_window->iter = iter;
     ctk_window->widget = widget;
-    
+
 } /* tree_selection_changed() */
 
 
 
-/* 
+/*
  * row_activated_event() - callback for row-activated event
  * - handles key presses automatically
  * - allows the mouse to collapse/expand the menu even when the
@@ -440,7 +441,7 @@ static void row_activated_event(GtkTreeView        *view,
                                 gpointer            user_data)
 {
     CtkWindow *ctk_window = CTK_WINDOW(user_data);
-    
+
     if (gtk_tree_view_row_expanded(ctk_window->treeview, path)) {
         gtk_tree_view_collapse_row(ctk_window->treeview, path);
     } else {
@@ -510,12 +511,12 @@ GtkWidget *ctk_window_new(ParsedAttribute *p, ConfigProperties *conf,
     gtk_container_set_border_width(GTK_CONTAINER(ctk_window), CTK_WINDOW_PAD);
 
     ctk_window->attribute_list = p;
-    
+
     /* create the config object */
 
     ctk_window->ctk_config = CTK_CONFIG(ctk_config_new(conf, system));
     ctk_config = ctk_window->ctk_config;
-    
+
     /* create the quit dialog */
 
     ctk_window->quit_dialog = create_quit_dialog(ctk_window);
@@ -527,21 +528,21 @@ GtkWidget *ctk_window_new(ParsedAttribute *p, ConfigProperties *conf,
     vbox = gtk_vbox_new(FALSE, 5);
     gtk_container_add(GTK_CONTAINER(ctk_window), vbox);
     gtk_box_pack_end(GTK_BOX(vbox), hbox, FALSE, FALSE, 0);
-    
+
     /* place the status bar */
-    
+
     statusbar = ctk_config_get_statusbar(ctk_config);
     eventbox = gtk_event_box_new();
     gtk_container_add(GTK_CONTAINER(eventbox), statusbar);
-    
+
     gtk_box_pack_start(GTK_BOX(hbox), eventbox, TRUE, TRUE, 0);
-    
+
     ctk_config_set_tooltip(ctk_config, eventbox, "The status bar displays "
                            "the most recent change that has been sent to the "
                            "X server.");
-    
+
     /* create and place the help toggle button */
-  
+
     toggle_button = gtk_toggle_button_new();
 
     g_object_set(G_OBJECT(toggle_button),
@@ -559,7 +560,7 @@ GtkWidget *ctk_window_new(ParsedAttribute *p, ConfigProperties *conf,
     ctk_window->ctk_help = NULL;
     tag_table = ctk_help_create_tag_table();
     ctk_window->help_tag_table = tag_table;
-    
+
     ctk_config_set_tooltip(ctk_config, toggle_button, "The Help button "
                            "toggles the display of a help window which "
                            "provides a detailed explanation of the available "
@@ -573,14 +574,14 @@ GtkWidget *ctk_window_new(ParsedAttribute *p, ConfigProperties *conf,
     g_signal_connect(G_OBJECT(button), "clicked",
                      G_CALLBACK(close_button_clicked),
                      (gpointer) ctk_window);
-    
+
     gtk_box_pack_start(GTK_BOX(hbox), button, FALSE, FALSE, 0);
-    
+
     ctk_config_set_tooltip(ctk_config, button, "The Quit button causes the "
                            "current settings to be saved to the configuration "
                            "file (~/.nvidia-settings-rc), and nvidia-settings "
                            "to exit.");
-    
+
     /* create the horizontal pane */
 
     hpane = gtk_hpaned_new();
@@ -591,11 +592,11 @@ GtkWidget *ctk_window_new(ParsedAttribute *p, ConfigProperties *conf,
     gtk_paned_pack1(GTK_PANED(hpane), frame, FALSE, FALSE);
 
     /* scrollable window */
-    
+
     sw = gtk_scrolled_window_new(NULL, NULL);
     gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(sw),
                                    GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
-    
+
     gtk_container_add(GTK_CONTAINER(frame), sw);
 
     /* create the tree model */
@@ -880,7 +881,7 @@ GtkWidget *ctk_window_new(ParsedAttribute *p, ConfigProperties *conf,
         gtk_tree_store_set(ctk_window->tree_store, &iter,
                            CTK_WINDOW_WIDGET_COLUMN, child, -1);
         gtk_tree_store_set(ctk_window->tree_store, &iter,
-                           CTK_WINDOW_HELP_COLUMN, 
+                           CTK_WINDOW_HELP_COLUMN,
                            ctk_gpu_create_help(tag_table, CTK_GPU(child)), -1);
         gtk_tree_store_set(ctk_window->tree_store, &iter,
                            CTK_WINDOW_CONFIG_FILE_ATTRIBUTES_FUNC_COLUMN,
@@ -906,7 +907,7 @@ GtkWidget *ctk_window_new(ParsedAttribute *p, ConfigProperties *conf,
         if (child) {
             help = ctk_powermizer_create_help(tag_table, CTK_POWERMIZER(child));
             add_page(child, help, ctk_window, &iter, NULL, "PowerMizer",
-                     NULL, ctk_powermizer_start_timer, 
+                     NULL, ctk_powermizer_start_timer,
                      ctk_powermizer_stop_timer);
         }
 
@@ -1018,6 +1019,14 @@ GtkWidget *ctk_window_new(ParsedAttribute *p, ConfigProperties *conf,
              ctk_window, NULL, NULL, "nvidia-settings Configuration",
              NULL, NULL, NULL);
 
+	/* PRIME settings  */
+	widget = ctk_prime_new(ctk_config);
+	if (widget) {
+		help = ctk_prime_create_help(tag_table, CTK_PRIME(widget));
+		add_page(widget, help, ctk_window, NULL, NULL, "PRIME Profiles",
+				 NULL, NULL, NULL);
+	}
+
     /*
      * we're done with the current data in the parsed attribute list,
      * so clean it out
@@ -1045,9 +1054,9 @@ GtkWidget *ctk_window_new(ParsedAttribute *p, ConfigProperties *conf,
 
 
     /* set the window title */
-    
+
     gtk_window_set_title(GTK_WINDOW(object), "NVIDIA Settings");
-    
+
     gtk_widget_show_all(GTK_WIDGET(object));
 
 
@@ -1080,7 +1089,7 @@ GtkWidget *ctk_window_new(ParsedAttribute *p, ConfigProperties *conf,
 
     g_signal_connect(G_OBJECT(ctk_window), "delete-event",
                      G_CALLBACK(ctk_window_delete_event), (gpointer) ctk_window);
-    
+
     return GTK_WIDGET(object);
 
 } /* ctk_window_new() */
@@ -1177,7 +1186,7 @@ static void add_page(GtkWidget *widget, GtkTextBuffer *help,
                      GtkTreeIter *child_iter,
                      const gchar *label, config_file_attributes_func_t func,
                      select_widget_func_t select_func,
-                     unselect_widget_func_t unselect_func)                     
+                     unselect_widget_func_t unselect_func)
 {
     GtkTreeIter tmp_child_iter;
 
@@ -1249,20 +1258,20 @@ static GtkWidget *create_quit_dialog(CtkWindow *ctk_window)
 
     gtk_container_set_border_width(GTK_CONTAINER(dialog), 6);
     gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
-    
+
     hbox = gtk_hbox_new(FALSE, 5);
     gtk_container_set_border_width(GTK_CONTAINER(hbox), 6);
     gtk_container_add(GTK_CONTAINER(ctk_dialog_get_content_area(GTK_DIALOG(dialog))), hbox);
-    
+
     pixbuf = ctk_widget_render_icon(dialog, CTK_STOCK_DIALOG_QUESTION,
                                     GTK_ICON_SIZE_DIALOG, NULL);
     image = gtk_image_new_from_pixbuf(pixbuf);
     g_object_unref(pixbuf);
-    
+
     alignment = gtk_alignment_new(0.0, 0.0, 0, 0);
     gtk_container_add(GTK_CONTAINER(alignment), image);
     gtk_box_pack_start(GTK_BOX(hbox), alignment, FALSE, FALSE, 2);
-    
+
     label = gtk_label_new("Do you really want to quit?");
     ctk_window->quit_dialog_pending_label = label;
     alignment = gtk_alignment_new(0.0, 0.0, 0, 0);
@@ -1563,7 +1572,7 @@ static void update_display_devices(GtkWidget *object,
     parent_path =
         gtk_tree_model_get_path(GTK_TREE_MODEL(ctk_window->tree_store),
                                 &parent_iter);
-    parent_expanded = 
+    parent_expanded =
         gtk_tree_view_row_expanded(ctk_window->treeview, parent_path);
 
 

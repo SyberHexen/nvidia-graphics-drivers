@@ -26,6 +26,8 @@
 
 #include "NVCtrl.h"
 
+#include <X11/Xlib.h>
+
 #if defined __cplusplus
 extern "C" {
 #endif 

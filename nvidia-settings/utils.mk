@@ -47,6 +47,8 @@ BIN_LDFLAGS           ?=
 EXTRA_CFLAGS          ?=
 EXTRA_LDFLAGS         ?=
 
+LDFLAGS               += -Wl,--as-needed
+
 STACK_USAGE_WARNING   ?=
 CFLAGS                += $(if $(STACK_USAGE_WARNING),-Wstack-usage=$(STACK_USAGE_WARNING))
 
@@ -92,8 +94,8 @@ endif
 CFLAGS                += $(EXTRA_CFLAGS)
 LDFLAGS               += $(EXTRA_LDFLAGS)
 
-STRIP_CMD             ?= strip
-DO_STRIP              ?= 1
+STRIP_CMD             ?= true
+DO_STRIP              ?=
 
 INSTALL               ?= install
 INSTALL_BIN_ARGS      ?= -m 755
@@ -250,7 +252,7 @@ AS_HAS_INSTR = \
 # the source tarball
 ##############################################################################
 
-PREFIX ?= /usr/local
+PREFIX ?= /usr
 
 BINDIR = $(DESTDIR)$(PREFIX)/bin
 LIBDIR = $(DESTDIR)$(PREFIX)/lib

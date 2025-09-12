@@ -34,7 +34,8 @@ ifndef XNVCTRL_CFLAGS
   XNVCTRL_CFLAGS := $(shell $(PKG_CONFIG) --cflags x11)
 endif
 
-LIBXNVCTRL = $(OUTPUTDIR)/libXNVCtrl.a
+LIBXNVCTRL = $(XNVCTRL_DIR)/libXNVCtrl.a
+LIBXNVCTRL_SHARED = libXNVCtrl.so
 
 LIBXNVCTRL_SRC = $(XNVCTRL_DIR)/NVCtrl.c
 
@@ -44,3 +45,9 @@ $(eval $(call DEFINE_OBJECT_RULE,TARGET,$(LIBXNVCTRL_SRC)))
 
 $(LIBXNVCTRL) : $(LIBXNVCTRL_OBJ)
 	$(call quiet_cmd,AR) ru $@ $(LIBXNVCTRL_OBJ)
+
+$(LIBXNVCTRL_SHARED): $(LIBXNVCTRL_OBJ)
+	$(RM) $@ $@.*
+	$(CC) -shared -Wl,-soname=$@.0 -o $@.0.0.0 $(LDFLAGS) $^ -lXext -lX11
+	ln -s $@.0.0.0 $@.0
+	ln -s $@.0 $@

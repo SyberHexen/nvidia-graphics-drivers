@@ -49,6 +49,8 @@ CFLAGS                += -I $(OUTPUTDIR)
 LDFLAGS               += $(XNVCTRL_LDFLAGS)
 LIBS                  += -lXext -lX11
 
+LDFLAGS               += -Wl,--as-needed
+
 
 ##############################################################################
 # samples

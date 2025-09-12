@@ -395,9 +395,11 @@ int main(int argc, char **argv)
     if (op->rewrite) {
         nv_parsed_attribute_clean(p);
         system = NvCtrlGetSystem(op->ctrl_display, &systems);
+#if 0
         if (!system || !system->dpy) {
             return 1;
         }
+#endif
         ret = nv_write_config_file(op->config, system, p, &conf);
         NvCtrlFreeAllSystems(&systems);
         nv_parsed_attribute_free(p);
@@ -407,8 +409,8 @@ int main(int argc, char **argv)
     }
 
     /* upload the data from the config file */
-    
-    if (!op->no_load) {
+
+    if (!op->no_load && systems.n != 0) {
         ret = nv_read_config_file(op, op->config, op->ctrl_display,
                                   p, &conf, &systems);
     } else {

@@ -241,6 +241,10 @@ int nv_write_config_file(const char *filename, const CtrlSystem *system,
     char *prefix, scratch[4];
     char *locale = "C";
 
+    /* Skip if nvidia is not loaded */
+    if (!system)
+        return NV_TRUE;
+
     if (!filename) {
         nv_error_msg("Unable to open configuration file for writing.");
         return NV_FALSE;

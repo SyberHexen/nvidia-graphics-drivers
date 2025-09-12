@@ -58,7 +58,7 @@ ifeq (1,$(GTK2_AVAILABLE))
   endif
 
   ifndef GTK2_LDFLAGS
-    GTK2_LDFLAGS         := -Wl,--no-as-needed $(shell $(PKG_CONFIG) --libs gtk+-2.0)
+    GTK2_LDFLAGS         := $(shell $(PKG_CONFIG) --libs gtk+-2.0)
   endif
 else
   GTK2_CFLAGS ?=
@@ -80,7 +80,7 @@ ifeq (1,$(GTK3_AVAILABLE))
   endif
 
   ifndef GTK3_LDFLAGS
-    GTK3_LDFLAGS         := -Wl,--no-as-needed $(shell $(PKG_CONFIG) --libs gtk+-3.0)
+    GTK3_LDFLAGS         := $(shell $(PKG_CONFIG) --libs gtk+-3.0)
   endif
 else
   GTK3_CFLAGS ?=
@@ -318,38 +318,38 @@ NVIDIA_SETTINGS_install: $(NVIDIA_SETTINGS)
 	$(INSTALL) $(INSTALL_BIN_ARGS) $< $(BINDIR)/$(notdir $<)
 
 $(eval $(call DEBUG_INFO_RULES, $(NVIDIA_SETTINGS)))
-$(NVIDIA_SETTINGS).unstripped: $(OBJS) $(LIBXNVCTRL)
+$(NVIDIA_SETTINGS).unstripped: $(OBJS) $(LIBXNVCTRL_SHARED)
 	$(call quiet_cmd,LINK) $(CFLAGS) $(LDFLAGS) $(BIN_LDFLAGS) \
-	    -rdynamic -o $@ $(OBJS) $(LIBXNVCTRL) $(LIBS)
+	    -rdynamic -o $@ $(OBJS) $(LIBXNVCTRL_SHARED) $(LIBS)
 
 ifdef BUILD_GTK2LIB
 $(eval $(call DEBUG_INFO_RULES, $(GTK2LIB)))
 $(GTK2LIB).unstripped: $(LIBXNVCTRL) $(GTK2_OBJS) $(XCP_OBJS) $(IMAGE_OBJS) $(VERSION_MK)
 	$(call quiet_cmd,LINK) -shared $(CFLAGS) $(LDFLAGS) $(BIN_LDFLAGS) \
-	    $(LIBXNVCTRL) $(LIBS) $(GTK2_LIBS) \
-	    -Wl,--unresolved-symbols=ignore-all -o $@ \
+	    -o $@ \
 	    -Wl,-soname -Wl,$(GTK2LIB_SONAME) \
-	    $(GTK2_OBJS) $(IMAGE_OBJS) $(XCP_OBJS)
+	    $(GTK2_OBJS) $(IMAGE_OBJS) $(XCP_OBJS) \
+	    $(LIBXNVCTRL) $(LIBS) $(GTK2_LIBS)
 endif
 
 ifdef BUILD_GTK3LIB
 $(eval $(call DEBUG_INFO_RULES, $(GTK3LIB)))
 $(GTK3LIB).unstripped: $(LIBXNVCTRL) $(GTK3_OBJS) $(XCP_OBJS) $(IMAGE_OBJS) $(VERSION_MK)
 	$(call quiet_cmd,LINK) -shared $(CFLAGS) $(LDFLAGS)  $(BIN_LDFLAGS) \
-	    $(LIBXNVCTRL) $(LIBS) $(GTK3_LIBS) \
-	    -Wl,--unresolved-symbols=ignore-all -o $@ \
+	    -o $@ \
 	    -Wl,-soname -Wl,$(GTK3LIB_SONAME) \
-	    $(GTK3_OBJS) $(XCP_OBJS) $(IMAGE_OBJS)
+	    $(GTK3_OBJS) $(XCP_OBJS) $(IMAGE_OBJS) \
+	    $(LIBXNVCTRL) $(LIBS) $(GTK3_LIBS)
 endif
 
 ifdef BUILD_WAYLANDLIB
 $(eval $(call DEBUG_INFO_RULES, $(WAYLANDLIB)))
 $(WAYLANDLIB).unstripped: $(WAYLAND_OBJS)
 	$(call quiet_cmd,LINK) -shared $(CFLAGS) $(LDFLAGS)  $(BIN_LDFLAGS) \
-	    $(LIBS) $(WAYLAND_LIBS) \
-	    -Wl,--unresolved-symbols=ignore-all -o $@ \
+	    -o $@ \
 	    -Wl,-soname -Wl,$(WAYLANDLIB_SONAME) \
-	    $(WAYLAND_OBJS)
+	    $(WAYLAND_OBJS) \
+	    $(LIBXNVCTRL) $(LIBS) $(WAYLAND_LIBS)
 
 endif
 
@@ -365,11 +365,12 @@ endif
 
 .PHONY: clean clobber
 clean clobber:
+	$(MAKE) -C $(XNVCTRL_DIR) clean
 	rm -rf $(NVIDIA_SETTINGS) *~ \
 		$(OUTPUTDIR)/*.o $(OUTPUTDIR)/*.d \
 		$(GTK2LIB) $(GTK3LIB) $(GTK2LIB_DIR) $(GTK3LIB_DIR) \
 		$(WAYLANDLIB) $(WAYLANDLIB_DIR) \
-		$(IMAGE_HEADERS) $(LIBXNVCTRL)
+		$(IMAGE_HEADERS) $(LIBXNVCTRL_SHARED)
 
 ifdef BUILD_GTK2LIB
 $(foreach src,$(GTK_SRC), \
