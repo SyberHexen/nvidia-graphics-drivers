@@ -1,0 +1,11 @@
+--- a/src/nvidia-settings.c
++++ b/src/nvidia-settings.c
+@@ -336,7 +336,7 @@ int main(int argc, char **argv)
+ 
+     /* upload the data from the config file */
+ 
+-    if (!op->no_load) {
++    if (!op->no_load && systems.n != 0) {
+         ret = nv_read_config_file(op, op->config, op->ctrl_display,
+                                   p, &conf, &systems);
+     } else {

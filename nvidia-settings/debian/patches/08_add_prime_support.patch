@@ -1,0 +1,1034 @@
+From 92cb07acb3a3e16e7330a7bed8960ca943e251c0 Mon Sep 17 00:00:00 2001
+From: Alberto Milone <alberto.milone@canonical.com>
+Date: Mon, 9 Oct 2017 11:22:01 +0200
+Subject: [PATCH 1/1] Add support for PRIME GPU switching
+
+Refreshed for the 410 series
+---
+ src/gtk+-2.x/ctkprime.c  | 518 +++++++++++++++++++++++++++++++++++++++++++++++
+ src/gtk+-2.x/ctkprime.h  |  77 +++++++
+ src/gtk+-2.x/ctkwindow.c |  10 +
+ src/src.mk               |   2 +
+ 4 files changed, 607 insertions(+)
+ create mode 100644 src/gtk+-2.x/ctkprime.c
+ create mode 100644 src/gtk+-2.x/ctkprime.h
+
+--- /dev/null
++++ b/src/gtk+-2.x/ctkprime.c
+@@ -0,0 +1,644 @@
++/*
++ * nvidia-settings: A tool for configuring the NVIDIA X driver on Unix
++ * and Linux systems.
++ *
++ * Copyright (C) 2013 Canonical Ltd.
++ *
++ * Author: Alberto Milone <alberto.milone@canonical.com>
++ *
++ * Based on ctkxvideo.c:
++ * - Copyright (C) 2004 NVIDIA Corporation.
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms and conditions of the GNU General Public License,
++ * version 2, as published by the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
++ * more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program.  If not, see <http://www.gnu.org/licenses>.
++ */
++
++#include <stdlib.h>
++#include <stdio.h>
++#include <string.h>
++#include <gtk/gtk.h>
++
++#include "ctkbanner.h"
++#include "ctkutils.h"
++#include "ctkprime.h"
++#include "ctkscale.h"
++
++#include "ctkhelp.h"
++
++
++static void prime_changed(GtkWidget *widget, gpointer user_data);
++
++static GtkWidget *prime_radio_button_add(CtkPrime *ctk_prime,
++                                         GtkWidget *prev_radio,
++                                         char *label,
++                                         gchar *value,
++                                         int index);
++
++static void
++prime_update_radio_buttons(CtkPrime *ctk_prime, gint value);
++
++static void prime_changed(GtkWidget *widget, gpointer user_data);
++
++#define FRAME_PADDING 5
++
++
++/* Create an info message dialog */
++static void ctk_display_info_msg(GtkWidget *parent, gchar * msg)
++{
++    GtkWidget *dlg;
++
++    if (msg) {
++        nv_warning_msg("%s", msg);
++
++        if (parent) {
++            dlg = gtk_message_dialog_new
++            (GTK_WINDOW(parent),
++             GTK_DIALOG_DESTROY_WITH_PARENT,
++             GTK_MESSAGE_INFO,
++             GTK_BUTTONS_OK,
++             "%s", msg);
++            gtk_dialog_run(GTK_DIALOG(dlg));
++            gtk_widget_destroy(dlg);
++        }
++    }
++}
++
++
++/* See if the hardware is supported */
++static gboolean is_supported(void) {
++    gchar *command = "/usr/bin/prime-supported /dev/stderr";
++    int supported = 1;
++    gboolean status;
++    int exit_status = 0;
++    gchar *output = NULL;
++    gchar *error_str = NULL;
++    GError *error = NULL;
++    status = g_spawn_command_line_sync(command, &output, &error_str, &exit_status, &error);
++
++    if (!status) {
++        g_warning("PRIME: %s", error->message);
++
++        if (output)
++            g_free(output);
++        if (error_str)
++            g_free(error_str);
++        if (error)
++            g_error_free(error);
++
++        return status;
++    }
++
++    if (output)
++        output[strlen(output) - 1] = '\0';
++
++    if (strlen(error_str) > 0) {
++        error_str[strlen(error_str) - 1] = '\0';
++        g_message("PRIME: %s", error_str);
++
++    }
++
++    supported = (strcmp(output, "yes") == 0);
++
++    if (output)
++        g_free(output);
++
++    if (error_str)
++        g_free(error_str);
++
++    if (error)
++        g_error_free(error);
++
++    return supported;
++}
++
++
++/* See if the on-demand mode is supported */
++static gboolean is_on_demand_supported(void) {
++    gchar *command = "/usr/bin/prime-select --help";
++    int supported = 0;
++    gboolean status;
++    int exit_status = 0;
++    gchar *output = NULL;
++    gchar *error_str = NULL;
++    GError *error = NULL;
++    status = g_spawn_command_line_sync(command, &output, &error_str, &exit_status, &error);
++
++    if (!status) {
++        g_warning("PRIME: %s", error->message);
++
++        if (output)
++            g_free(output);
++        if (error_str)
++            g_free(error_str);
++        if (error)
++            g_error_free(error);
++
++        return status;
++    }
++
++    if (output)
++        output[strlen(output) - 1] = '\0';
++
++    if (strlen(error_str) > 0) {
++        error_str[strlen(error_str) - 1] = '\0';
++        g_message("PRIME: %s", error_str);
++    }
++
++    supported = (g_strrstr(error_str, "on-demand") != NULL) ? 1 : 0;
++
++    g_message("PRIME: on-demand mode: \"%d\"", supported);
++
++    if (output)
++        g_free(output);
++
++    if (error_str)
++        g_free(error_str);
++
++    if (error)
++        g_error_free(error);
++
++    return supported;
++}
++
++
++/* Get the active GPU */
++static gboolean get_active_gpu(gchar **gpu) {
++    gchar *command = "/usr/bin/prime-select query";
++    gboolean status;
++    int exit_status = 0;
++    gchar *output = NULL;
++    gchar *error_str = NULL;
++    GError *error = NULL;
++    status = g_spawn_command_line_sync(command, &output, &error_str, &exit_status, &error);
++
++    if (!status) {
++        /* If we get here, something seriously broken */
++        g_error("PRIME error: %s", error->message);
++        if (output)
++            g_free(output);
++
++        if (error_str)
++            g_free(error_str);
++
++        if (error)
++            g_error_free(error);
++
++        return status;
++    }
++
++    if (output) {
++        output[strlen(output) - 1] = '\0';
++        *gpu = g_strdup(output);
++    }
++
++    if (output)
++        g_free(output);
++
++    if (error_str)
++        g_free(error_str);
++
++    if (error)
++        g_error_free(error);
++
++    return status;
++}
++
++
++GType ctk_prime_get_type(void)
++{
++    static GType ctk_prime_type = 0;
++
++    if (!ctk_prime_type) {
++        static const GTypeInfo ctk_prime_info = {
++            sizeof (CtkPrimeClass),
++            NULL, /* base_init */
++            NULL, /* base_finalize */
++            NULL, /* class_init */
++            NULL, /* class_finalize */
++            NULL, /* class_data */
++            sizeof(CtkPrime),
++            0, /* n_preallocs */
++            NULL, /* instance_init */
++            NULL  /* value_table */
++        };
++
++        ctk_prime_type = g_type_register_static
++            (GTK_TYPE_VBOX, "CtkPrime", &ctk_prime_info, 0);
++    }
++
++    return ctk_prime_type;
++}
++
++
++/*
++ * Create a radio button and plug it
++ * into the prime radio group.
++ */
++static GtkWidget *prime_radio_button_add(CtkPrime *ctk_prime,
++                                         GtkWidget *prev_radio,
++                                         char *label,
++                                         gchar *value,
++                                         int index)
++{
++    GtkWidget *radio;
++
++    if (prev_radio) {
++        radio = gtk_radio_button_new_with_label_from_widget
++            (GTK_RADIO_BUTTON(prev_radio), label);
++    } else {
++        radio = gtk_radio_button_new_with_label(NULL, label);
++    }
++
++    gtk_box_pack_start(GTK_BOX(ctk_prime->prime_button_box),
++                       radio, FALSE, FALSE, 0);
++
++    g_object_set_data(G_OBJECT(radio), "prime", value);
++
++    g_signal_connect(G_OBJECT(radio), "toggled",
++                     G_CALLBACK(prime_changed),
++                     (gpointer) ctk_prime);
++
++    ctk_prime->prime_buttons[index] = radio;
++
++    return radio;
++}
++
++
++static void
++prime_update_radio_buttons(CtkPrime *ctk_prime, gint value)
++{
++    GtkWidget *b, *button = NULL;
++    int i;
++
++    button = ctk_prime->prime_buttons[value];
++    if (!button) return;
++
++    /* turn off signal handling for all the sync buttons */
++    for (i = 0; i < 24; i++) {
++        b = ctk_prime->prime_buttons[i];
++        if (!b) continue;
++
++        g_signal_handlers_block_by_func
++            (G_OBJECT(b), G_CALLBACK(prime_changed),
++             (gpointer) ctk_prime);
++    }
++
++    /* set the appropriate button active */
++    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(button), TRUE);
++
++    /* turn on signal handling for all the sync buttons */
++    for (i = 0; i < 24; i++) {
++        b = ctk_prime->prime_buttons[i];
++        if (!b) continue;
++
++        g_signal_handlers_unblock_by_func
++            (G_OBJECT(b), G_CALLBACK(prime_changed),
++             (gpointer) ctk_prime);
++    }
++}
++
++
++/* get button value for gpu mode
++ *   if ctk_prime->has_on_demand_mode == 1:
++ *     nvidia: 0
++ *     on-demand: 1
++ *     intel: 2
++ *   else:
++ *     nvidia: 0
++ *     intel: 1
++ */
++static int mode_to_button_value(CtkPrime *ctk_prime, gchar *current_gpu) {
++    int current_button;
++    if (strcmp(current_gpu, "nvidia") == 0) {
++        current_button = 0;
++    } else if (strcmp(current_gpu, "on-demand") == 0) {
++        current_button = 1;
++    } else {
++        if (ctk_prime->has_on_demand_mode) {
++            current_button = 2;
++        } else {
++         current_button = 1;
++        }
++    }
++    return current_button;
++}
++
++
++/* Child watch callback function */
++static void
++child_watch_cb (GPid     pid,
++                gint     exit_status,
++                gpointer user_data)
++{
++    gboolean success;
++    gint status;
++
++    g_autoptr(GError) error = NULL;
++    GtkWidget *parent = NULL;
++    CtkPrime *ctk_prime = CTK_PRIME(user_data);
++
++    success = g_spawn_check_exit_status (exit_status, &error);
++
++    /* Remove the source of the timeout */
++    g_source_remove(ctk_prime->source_id);
++    ctk_prime->source_id = 0;
++
++    /* Get the parent widget */
++    parent = ctk_get_parent_window(GTK_WIDGET(ctk_prime));
++
++    /* Free the progress dialog */
++    gtk_widget_destroy (GTK_WIDGET (ctk_prime->progress_dialog));
++    ctk_prime->progress_dialog = NULL;
++
++    /* if the child succeeded */
++    if (success) {
++        /* Did it really succeed though? */
++        status = WEXITSTATUS(exit_status);
++
++        if (status == 0) {
++            /* Show a dialog to suggest restarting the computer */
++
++            ctk_prime->current_button = mode_to_button_value(ctk_prime, ctk_prime->value);
++            ctk_display_info_msg(parent,
++                "Please restart the system to apply the changes");
++        } else {
++            if (status != 5) {
++                /* Show an error only if the user did not
++                 * cancel the operation
++                 */
++                ctk_display_error_msg(parent, error->message);
++            }
++
++            /* Set the radio button to the previous position */
++            prime_update_radio_buttons(ctk_prime, ctk_prime->current_button);
++        }
++    } else {
++        /* Something's wrong with the child */
++
++        /* Show an error dialog */
++        ctk_display_error_msg(parent, error->message);
++
++        /* Set the radio button to the previous position */
++        prime_update_radio_buttons(ctk_prime, ctk_prime->current_button);
++    }
++
++    /* Free the resources associated with the child */
++    g_spawn_close_pid (pid);
++    g_free(ctk_prime->value);
++}
++
++
++/* Make the progress bar bounce */
++static gboolean
++bounce_bar (gpointer user_data)
++{
++    if (!user_data)
++        return FALSE;
++
++    GtkWidget *progress_bar = user_data;
++    gtk_progress_bar_pulse(GTK_PROGRESS_BAR (progress_bar));
++    return TRUE;
++}
++
++
++/*
++ * Callback function for changes to the
++ * prime radio button group;
++ */
++static void prime_changed(GtkWidget *widget, gpointer user_data)
++{
++    gboolean enabled;
++    GtkWidget *content_area;
++    GtkWidget *label;
++    GtkWidget *progress_bar;
++    gboolean status;
++    gint child_stdout, child_stderr;
++    GPid child_pid;
++
++    CtkPrime *ctk_prime = CTK_PRIME(user_data);
++    g_autoptr(GError) error = NULL;
++    ctk_prime->source_id = 0;
++
++    /* Get the toggle button state */
++    enabled = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(widget));
++
++    if (enabled) {
++        /* Get the parent window */
++        GtkWidget *parent;
++        parent = ctk_get_parent_window(GTK_WIDGET(ctk_prime));
++
++        user_data = g_object_get_data(G_OBJECT(widget), "prime");
++
++        /* We use "value" to know what to select */
++        ctk_prime->value = g_strdup((gchar*)user_data);
++
++
++        /* Create the progress dialog */
++        ctk_prime->progress_dialog = gtk_dialog_new_with_buttons ("PRIME",
++                                                                  GTK_WINDOW(parent),
++                                                                  GTK_RESPONSE_NONE,
++                                                                  NULL);
++
++        /* Create a label */
++        content_area = gtk_dialog_get_content_area (GTK_DIALOG (ctk_prime->progress_dialog));
++        label = gtk_label_new ("Please wait for the operation to complete");
++        gtk_container_add (GTK_CONTAINER (content_area), label);
++
++        /* Create a progress bar */
++        progress_bar = gtk_progress_bar_new();
++        gtk_container_add (GTK_CONTAINER (content_area), progress_bar);
++
++        /* keep the bar bouncing */
++        ctk_prime->source_id = g_timeout_add (500, bounce_bar, GTK_PROGRESS_BAR (progress_bar));
++
++        gchar * argv[] = {"/usr/bin/pkexec", "/usr/bin/prime-select", ctk_prime->value, NULL };
++
++        status = g_spawn_async_with_pipes (NULL, argv, NULL, G_SPAWN_DO_NOT_REAP_CHILD, NULL,
++                          NULL, &child_pid, NULL, &child_stdout,
++                          &child_stderr, &error);
++
++        if (!status || error != NULL) {
++            /* Something's wrong with gspawn */
++            g_error ("Spawning child failed: %s", error->message);
++            gtk_widget_destroy(ctk_prime->progress_dialog);
++
++            /* Show an error dialog */
++            ctk_display_error_msg(parent, error->message);
++
++            /* Set the radio button to the previous position */
++            prime_update_radio_buttons(ctk_prime, ctk_prime->current_button);
++
++            return;
++        }
++
++        /* Show the progress dialog */
++        gtk_widget_show_all (ctk_prime->progress_dialog);
++
++        /* Add a child watch function which will be called when the child
++         * process exits
++         */
++        g_child_watch_add (child_pid, child_watch_cb, ctk_prime);
++    }
++}
++
++
++/* Constructor for the Prime widget */
++GtkWidget* ctk_prime_new(CtkConfig *ctk_config)
++{
++    GObject *object;
++    CtkPrime *ctk_prime;
++    GtkWidget *banner;
++    GtkWidget *frame;
++    GtkWidget *alignment;
++    GtkWidget *vbox;
++
++    /*
++     * before we do anything else, determine if PRIME is supported
++     */
++    int supported;
++    supported = is_supported();
++    g_message("PRIME: is it supported? %s", (supported ? "yes" : "no"));
++
++    if (! supported)
++        return NULL;
++
++    /* create the Prime widget */
++    object = g_object_new(CTK_TYPE_PRIME, NULL);
++    ctk_prime = CTK_PRIME(object);
++
++    ctk_prime->ctk_config = ctk_config;
++
++    ctk_prime->has_on_demand_mode = is_on_demand_supported();
++    g_message("PRIME: is \"on-demand\" mode supported? %s", (ctk_prime->has_on_demand_mode ? "yes" : "no"));
++
++    gtk_box_set_spacing(GTK_BOX(ctk_prime), 10);
++
++    /* Set the banner */
++    banner = ctk_banner_image_new(BANNER_ARTWORK_GPU);
++    gtk_box_pack_start(GTK_BOX(object), banner, FALSE, FALSE, 0);
++
++    /* Create two radiobuttons for the two power profiles */
++    GtkWidget *radio[24], *prev_radio;
++    frame = gtk_frame_new("Select the GPU you would like to use");
++    gtk_box_pack_start(GTK_BOX(object), frame, FALSE, FALSE, 0);
++
++    vbox = gtk_vbox_new(FALSE, 5);
++    gtk_container_set_border_width(GTK_CONTAINER(vbox), FRAME_PADDING);
++    gtk_container_add(GTK_CONTAINER(frame), vbox);
++    ctk_prime->prime_button_box = vbox;
++
++    /* Button for NVIDIA */
++    radio[0] = prime_radio_button_add(ctk_prime,
++                                      NULL,
++                                      "NVIDIA (Performance Mode)",
++                                      "nvidia",
++                                      0);
++
++    /* Set the tooltip for NVIDIA */
++    ctk_config_set_tooltip(ctk_config, radio[0],
++                           "Enabling this option ensures the best "
++                           "graphics performance. This option is "
++                           "applied after a system restart.");
++
++
++    /* NOTE: if changing the buttons order, please also
++     *       change the mode_to_button_value() function
++     *       accordingly.
++     */
++    if (ctk_prime->has_on_demand_mode) {
++        /* Button for NVIDIA On Demand */
++        radio[1] = prime_radio_button_add(ctk_prime,
++                                          radio[0],
++                                          "NVIDIA On-Demand",
++                                          "on-demand",
++                                          1);
++
++        /* Set the tooltip for ON-Demand */
++        ctk_config_set_tooltip(ctk_config, radio[1],
++                               "Enabling this option allows using the Nvidia GPU"
++                               " in on-demand mode. This option is "
++                               "applied after a system restart.");
++
++        /* Button for Intel */
++        radio[2] = prime_radio_button_add(ctk_prime,
++                                          radio[1],
++                                          "Intel (Power Saving Mode)",
++                                          "intel",
++                                          2);
++        /* Set the tooltip for Intel */
++        ctk_config_set_tooltip(ctk_config, radio[2],
++                               "Enabling this option ensures the best "
++                               "battery life. This option is "
++                               "applied after a system restart.");
++    } else {
++        /* Button for Intel */
++        radio[1] = prime_radio_button_add(ctk_prime,
++                                          radio[0],
++                                          "Intel (Power Saving Mode)",
++                                          "intel",
++                                          1);
++        /* Set the tooltip for Intel */
++        ctk_config_set_tooltip(ctk_config, radio[1],
++                               "Enabling this option ensures the best "
++                               "battery life. This option is "
++                               "applied after a system restart.");
++    }
++
++    /* Get the current GPU in use from the switcher*/
++    gchar *current_gpu = NULL;
++    get_active_gpu(&current_gpu);
++
++    int current_button = mode_to_button_value(ctk_prime, current_gpu);
++    g_free(current_gpu);
++    ctk_prime->current_button = current_button;
++
++    /* Enable the button which matches the current
++     * configuration
++     */
++    prime_update_radio_buttons(ctk_prime, current_button);
++
++    alignment = gtk_alignment_new(1, 1, 0, 0);
++    gtk_box_pack_start(GTK_BOX(object), alignment, TRUE, TRUE, 0);
++
++    /* finally, show the widget */
++
++    gtk_widget_show_all(GTK_WIDGET(ctk_prime));
++
++    return GTK_WIDGET(ctk_prime);
++}
++
++
++GtkTextBuffer *ctk_prime_create_help(GtkTextTagTable *table,
++                                      CtkPrime *ctk_prime)
++{
++    GtkTextIter i;
++    GtkTextBuffer *b;
++
++    b = gtk_text_buffer_new(table);
++
++    gtk_text_buffer_get_iter_at_offset(b, &i, 0);
++
++    ctk_help_title(b, &i, "PRIME Profiles Help");
++
++    ctk_help_para(b, &i, "The Prime Profiles page gives "
++                          "you control over which GPU you "
++                          "desire to use.");
++
++    ctk_help_para(b, &i, "It is recommended that you "
++                         "select NVIDIA for the best performance, "
++                         "and Intel for the best battery life.");
++
++    ctk_help_finish(b);
++
++    return b;
++}
++
+--- /dev/null
++++ b/src/gtk+-2.x/ctkprime.h
+@@ -0,0 +1,82 @@
++/*
++ * nvidia-settings: A tool for configuring the NVIDIA X driver on Unix
++ * and Linux systems.
++ *
++ * Copyright (C) 2013 Canonical Ltd.
++ *
++ * Author: Alberto Milone <alberto.milone@canonical.com>
++ *
++ * Based on ctkxvideo.h:
++ * - Copyright (C) 2004 NVIDIA Corporation.
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms and conditions of the GNU General Public License,
++ * version 2, as published by the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
++ * more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program.  If not, see <http://www.gnu.org/licenses>.
++ */
++
++#ifndef __CTK_PRIME_H__
++#define __CTK_PRIME_H__
++
++#include "ctkconfig.h"
++#include "ctkevent.h"
++
++G_BEGIN_DECLS
++
++#define CTK_TYPE_PRIME (ctk_prime_get_type())
++
++#define CTK_PRIME(obj) \
++    (G_TYPE_CHECK_INSTANCE_CAST ((obj), CTK_TYPE_PRIME, CtkPrime))
++
++#define CTK_PRIME_CLASS(klass) \
++    (G_TYPE_CHECK_CLASS_CAST ((klass), CTK_TYPE_PRIME, CtkPrimeClass))
++
++#define CTK_IS_PRIME(obj) \
++    (G_TYPE_CHECK_INSTANCE_TYPE ((obj), CTK_TYPE_PRIME))
++
++#define CTK_IS_PRIME_CLASS(class) \
++    (G_TYPE_CHECK_CLASS_TYPE ((klass), CTK_TYPE_PRIME))
++
++#define CTK_PRIME_GET_CLASS(obj) \
++    (G_TYPE_INSTANCE_GET_CLASS ((obj), CTK_TYPE_PRIME, CtkPrimeClass))
++
++
++typedef struct _CtkPrime       CtkPrime;
++typedef struct _CtkPrimeClass  CtkPrimeClass;
++
++struct _CtkPrime
++{
++    GtkVBox parent;
++
++    CtkConfig *ctk_config;
++
++    GtkWidget *prime_buttons[24];
++    GtkWidget *prime_button_box;
++    GtkWidget *progress_dialog;
++    int current_button;
++    int has_on_demand_mode;
++    gchar *value;
++    guint source_id;
++};
++
++struct _CtkPrimeClass
++{
++    GtkVBoxClass parent_class;
++};
++
++GType       ctk_prime_get_type  (void) G_GNUC_CONST;
++GtkWidget*  ctk_prime_new       (CtkConfig *);
++
++GtkTextBuffer *ctk_prime_create_help(GtkTextTagTable *, CtkPrime *);
++
++G_END_DECLS
++
++#endif /* __CTK_PRIME_H__ */
++
+--- a/src/gtk+-2.x/ctkwindow.c
++++ b/src/gtk+-2.x/ctkwindow.c
+@@ -43,6 +43,7 @@
+ #include "ctkcolorcorrection.h"
+ #include "ctkcolorcorrectionpage.h"
+ #include "ctkxvideo.h"
++#include "ctkprime.h"
+ #include "ctkopengl.h"
+ #include "ctkglx.h"
+ #include "ctkmultisample.h"
+@@ -165,7 +166,7 @@ GType ctk_window_get_type(void)
+     }
+ 
+     return ctk_window_type;
+-    
++
+ } /* ctk_window_get_type() */
+ 
+ 
+@@ -429,12 +430,12 @@ static void tree_selection_changed(GtkTr
+ 
+     ctk_window->iter = iter;
+     ctk_window->widget = widget;
+-    
++
+ } /* tree_selection_changed() */
+ 
+ 
+ 
+-/* 
++/*
+  * row_activated_event() - callback for row-activated event
+  * - handles key presses automatically
+  * - allows the mouse to collapse/expand the menu even when the
+@@ -447,7 +448,7 @@ static void row_activated_event(GtkTreeV
+                                 gpointer            user_data)
+ {
+     CtkWindow *ctk_window = CTK_WINDOW(user_data);
+-    
++
+     if (gtk_tree_view_row_expanded(ctk_window->treeview, path)) {
+         gtk_tree_view_collapse_row(ctk_window->treeview, path);
+     } else {
+@@ -517,12 +518,12 @@ GtkWidget *ctk_window_new(ParsedAttribut
+     gtk_container_set_border_width(GTK_CONTAINER(ctk_window), CTK_WINDOW_PAD);
+ 
+     ctk_window->attribute_list = p;
+-    
++
+     /* create the config object */
+ 
+     ctk_window->ctk_config = CTK_CONFIG(ctk_config_new(conf, system));
+     ctk_config = ctk_window->ctk_config;
+-    
++
+     /* create the quit dialog */
+ 
+     ctk_window->quit_dialog = create_quit_dialog(ctk_window);
+@@ -534,21 +535,21 @@ GtkWidget *ctk_window_new(ParsedAttribut
+     vbox = gtk_vbox_new(FALSE, 5);
+     gtk_container_add(GTK_CONTAINER(ctk_window), vbox);
+     gtk_box_pack_end(GTK_BOX(vbox), hbox, FALSE, FALSE, 0);
+-    
++
+     /* place the status bar */
+-    
++
+     statusbar = ctk_config_get_statusbar(ctk_config);
+     eventbox = gtk_event_box_new();
+     gtk_container_add(GTK_CONTAINER(eventbox), statusbar);
+-    
++
+     gtk_box_pack_start(GTK_BOX(hbox), eventbox, TRUE, TRUE, 0);
+-    
++
+     ctk_config_set_tooltip(ctk_config, eventbox, "The status bar displays "
+                            "the most recent change that has been sent to the "
+                            "X server.");
+-    
++
+     /* create and place the help toggle button */
+-  
++
+     toggle_button = gtk_toggle_button_new();
+ 
+     g_object_set(G_OBJECT(toggle_button),
+@@ -566,7 +567,7 @@ GtkWidget *ctk_window_new(ParsedAttribut
+     ctk_window->ctk_help = NULL;
+     tag_table = ctk_help_create_tag_table();
+     ctk_window->help_tag_table = tag_table;
+-    
++
+     ctk_config_set_tooltip(ctk_config, toggle_button, "The Help button "
+                            "toggles the display of a help window which "
+                            "provides a detailed explanation of the available "
+@@ -580,14 +581,14 @@ GtkWidget *ctk_window_new(ParsedAttribut
+     g_signal_connect(G_OBJECT(button), "clicked",
+                      G_CALLBACK(close_button_clicked),
+                      (gpointer) ctk_window);
+-    
++
+     gtk_box_pack_start(GTK_BOX(hbox), button, FALSE, FALSE, 0);
+-    
++
+     ctk_config_set_tooltip(ctk_config, button, "The Quit button causes the "
+                            "current settings to be saved to the configuration "
+                            "file (~/.nvidia-settings-rc), and nvidia-settings "
+                            "to exit.");
+-    
++
+     /* create the horizontal pane */
+ 
+     hpane = gtk_hpaned_new();
+@@ -598,11 +599,11 @@ GtkWidget *ctk_window_new(ParsedAttribut
+     gtk_paned_pack1(GTK_PANED(hpane), frame, FALSE, FALSE);
+ 
+     /* scrollable window */
+-    
++
+     sw = gtk_scrolled_window_new(NULL, NULL);
+     gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(sw),
+                                    GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+-    
++
+     gtk_container_add(GTK_CONTAINER(frame), sw);
+ 
+     /* create the tree model */
+@@ -857,7 +858,7 @@ GtkWidget *ctk_window_new(ParsedAttribut
+         gtk_tree_store_set(ctk_window->tree_store, &iter,
+                            CTK_WINDOW_WIDGET_COLUMN, child, -1);
+         gtk_tree_store_set(ctk_window->tree_store, &iter,
+-                           CTK_WINDOW_HELP_COLUMN, 
++                           CTK_WINDOW_HELP_COLUMN,
+                            ctk_gpu_create_help(tag_table, CTK_GPU(child)), -1);
+         gtk_tree_store_set(ctk_window->tree_store, &iter,
+                            CTK_WINDOW_CONFIG_FILE_ATTRIBUTES_FUNC_COLUMN,
+@@ -883,7 +884,7 @@ GtkWidget *ctk_window_new(ParsedAttribut
+         if (child) {
+             help = ctk_powermizer_create_help(tag_table, CTK_POWERMIZER(child));
+             add_page(child, help, ctk_window, &iter, NULL, "PowerMizer",
+-                     NULL, ctk_powermizer_start_timer, 
++                     NULL, ctk_powermizer_start_timer,
+                      ctk_powermizer_stop_timer);
+         }
+ 
+@@ -995,6 +996,14 @@ GtkWidget *ctk_window_new(ParsedAttribut
+              ctk_window, NULL, NULL, "nvidia-settings Configuration",
+              NULL, NULL, NULL);
+ 
++	/* PRIME settings  */
++	widget = ctk_prime_new(ctk_config);
++	if (widget) {
++		help = ctk_prime_create_help(tag_table, CTK_PRIME(widget));
++		add_page(widget, help, ctk_window, NULL, NULL, "PRIME Profiles",
++				 NULL, NULL, NULL);
++	}
++
+     /*
+      * we're done with the current data in the parsed attribute list,
+      * so clean it out
+@@ -1022,9 +1031,9 @@ GtkWidget *ctk_window_new(ParsedAttribut
+ 
+ 
+     /* set the window title */
+-    
++
+     gtk_window_set_title(GTK_WINDOW(object), "NVIDIA Settings");
+-    
++
+     gtk_widget_show_all(GTK_WIDGET(object));
+ 
+ 
+@@ -1057,7 +1066,7 @@ GtkWidget *ctk_window_new(ParsedAttribut
+ 
+     g_signal_connect(G_OBJECT(ctk_window), "delete-event",
+                      G_CALLBACK(ctk_window_delete_event), (gpointer) ctk_window);
+-    
++
+     return GTK_WIDGET(object);
+ 
+ } /* ctk_window_new() */
+@@ -1154,7 +1163,7 @@ static void add_page(GtkWidget *widget,
+                      GtkTreeIter *child_iter,
+                      const gchar *label, config_file_attributes_func_t func,
+                      select_widget_func_t select_func,
+-                     unselect_widget_func_t unselect_func)                     
++                     unselect_widget_func_t unselect_func)
+ {
+     GtkTreeIter tmp_child_iter;
+ 
+@@ -1226,20 +1235,20 @@ static GtkWidget *create_quit_dialog(Ctk
+ 
+     gtk_container_set_border_width(GTK_CONTAINER(dialog), 6);
+     gtk_window_set_resizable(GTK_WINDOW(dialog), FALSE);
+-    
++
+     hbox = gtk_hbox_new(FALSE, 5);
+     gtk_container_set_border_width(GTK_CONTAINER(hbox), 6);
+     gtk_container_add(GTK_CONTAINER(ctk_dialog_get_content_area(GTK_DIALOG(dialog))), hbox);
+-    
++
+     pixbuf = ctk_widget_render_icon(dialog, CTK_STOCK_DIALOG_QUESTION,
+                                     GTK_ICON_SIZE_DIALOG, NULL);
+     image = gtk_image_new_from_pixbuf(pixbuf);
+     g_object_unref(pixbuf);
+-    
++
+     alignment = gtk_alignment_new(0.0, 0.0, 0, 0);
+     gtk_container_add(GTK_CONTAINER(alignment), image);
+     gtk_box_pack_start(GTK_BOX(hbox), alignment, FALSE, FALSE, 2);
+-    
++
+     label = gtk_label_new("Do you really want to quit?");
+     ctk_window->quit_dialog_pending_label = label;
+     alignment = gtk_alignment_new(0.0, 0.0, 0, 0);
+@@ -1540,7 +1549,7 @@ static void update_display_devices(GtkWi
+     parent_path =
+         gtk_tree_model_get_path(GTK_TREE_MODEL(ctk_window->tree_store),
+                                 &parent_iter);
+-    parent_expanded = 
++    parent_expanded =
+         gtk_tree_view_row_expanded(ctk_window->treeview, parent_path);
+ 
+ 
+--- a/src/src.mk
++++ b/src/src.mk
+@@ -173,6 +173,7 @@ GTK_SRC += gtk+-2.x/ctkapcrulemodel.c
+ GTK_SRC += gtk+-2.x/ctkcolorcontrols.c
+ GTK_SRC += gtk+-2.x/ctk3dvisionpro.c
+ GTK_SRC += gtk+-2.x/ctkvdpau.c
++GTK_SRC += gtk+-2.x/ctkprime.c
+ GTK_SRC += gtk+-2.x/ctkgridlicense.c
+ GTK_SRC += gtk+-2.x/ctkglwidget.c
+ GTK_SRC += gtk+-2.x/ctkglstereo.c
+@@ -221,6 +222,7 @@ GTK_EXTRA_DIST += gtk+-2.x/ctkapcrulemod
+ GTK_EXTRA_DIST += gtk+-2.x/ctkcolorcontrols.h
+ GTK_EXTRA_DIST += gtk+-2.x/ctk3dvisionpro.h
+ GTK_EXTRA_DIST += gtk+-2.x/ctkvdpau.h
++GTK_EXTRA_DIST += gtk+-2.x/ctkprime.h
+ GTK_EXTRA_DIST += gtk+-2.x/ctkgridlicense.h
+ GTK_EXTRA_DIST += gtk+-2.x/ctkglwidget.h
+ GTK_EXTRA_DIST += gtk+-2.x/ctkglstereo.h
+--- a/src/config-file.c
++++ b/src/config-file.c
+@@ -241,6 +241,10 @@ int nv_write_config_file(const char *fil
+     char *prefix, scratch[4];
+     char *locale = "C";
+ 
++    /* Skip if nvidia is not loaded */
++    if (!system)
++        return NV_TRUE;
++
+     if (!filename) {
+         nv_error_msg("Unable to open configuration file for writing.");
+         return NV_FALSE;
+--- a/src/nvidia-settings.c
++++ b/src/nvidia-settings.c
+@@ -306,7 +306,7 @@ int main(int argc, char **argv)
+         NvCtrlFreeAllSystems(&systems);
+         return ret ? 0 : 1;
+     }
+-    
++
+     /* initialize the parsed attribute list */
+ 
+     p = nv_parsed_attribute_init();
+@@ -335,7 +335,7 @@ int main(int argc, char **argv)
+     }
+ 
+     /* upload the data from the config file */
+-    
++
+     if (!op->no_load) {
+         ret = nv_read_config_file(op, op->config, op->ctrl_display,
+                                   p, &conf, &systems);
+@@ -367,9 +367,11 @@ int main(int argc, char **argv)
+ 
+     system = NvCtrlGetSystem(op->ctrl_display, &systems);
+ 
++#if 0
+     if (!system) {
+         return 1;
+     }
++#endif
+ 
+     /* pass control to the gui */
+ 

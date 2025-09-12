@@ -1,0 +1,16 @@
+Description: Install unstripped binaries, dh_strip takes care of this.
+Author: Michael Marley <michael@michaelmarley.com>
+
+--- a/utils.mk
++++ b/utils.mk
+@@ -78,8 +78,8 @@ ifeq ($(DEVELOP),1)
+   CFLAGS              += -DDEVELOP=1
+ endif
+ 
+-STRIP_CMD             ?= strip
+-DO_STRIP              ?= 1
++STRIP_CMD             ?= true
++DO_STRIP              ?=
+ 
+ INSTALL               ?= install
+ INSTALL_BIN_ARGS      ?= -m 755

@@ -1,0 +1,20 @@
+From 94f4a05935095362bdbd417bf6982c63172a08c2 Mon Sep 17 00:00:00 2001
+From: Alberto Milone <alberto.milone@canonical.com>
+Date: Mon, 3 Sep 2012 14:45:15 +0200
+Subject: [PATCH 1/1] utils.mk: remove local from prefix
+
+---
+ utils.mk |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/utils.mk
++++ b/utils.mk
+@@ -190,7 +190,7 @@ endif
+ # the source tarball
+ ##############################################################################
+ 
+-PREFIX ?= /usr/local
++PREFIX ?= /usr
+ 
+ BINDIR = $(DESTDIR)$(PREFIX)/bin
+ LIBDIR = $(DESTDIR)$(PREFIX)/lib
