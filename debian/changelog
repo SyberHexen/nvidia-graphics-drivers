@@ -1,3 +1,9 @@
+nvidia-graphics-drivers-595 (595.45.04-0ubuntu0.24.04.4) noble; urgency=medium
+
+  * New upstream release 595.45.04
+
+ -- Andrew Hexen <SyberHexen@gmail.com>  Sat, 07 Mar 2026 08:12:37 -0500
+
 nvidia-graphics-drivers-590 (590.48.01-0ubuntu0.24.04.4) noble; urgency=medium
 
   * Blacklist nova driver in modprobe (LP: #2142443)
