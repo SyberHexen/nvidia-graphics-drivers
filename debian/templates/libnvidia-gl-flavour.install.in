@@ -7,7 +7,8 @@
 #I386_EXCLUDED#NVIDIA-Linux/15_nvidia_gbm.json                            usr/share/egl/egl_external_platform.d
 #I386_EXCLUDED#NVIDIA-Linux/20_nvidia_xlib.json                           usr/share/egl/egl_external_platform.d
 #I386_EXCLUDED#NVIDIA-Linux/20_nvidia_xcb.json                            usr/share/egl/egl_external_platform.d
-#I386_EXCLUDED#NVIDIA-Linux/99_nvidia_wayland2.json                       usr/share/egl/egl_external_platform.d
+#I386_EXCLUDED#NVIDIA-Linux/09_nvidia_wayland2.json                       usr/share/egl/egl_external_platform.d
+#I386_EXCLUDED#NVIDIA-Linux/10_nvidia_wayland.json                       usr/share/egl/egl_external_platform.d
 #I386_EXCLUDED#NVIDIA-Linux/libEGL_nvidia.so.#VERSION#                    #LIBDIR#
 #I386_EXCLUDED#NVIDIA-Linux/libGLESv1_CM_nvidia.so.#VERSION#              #LIBDIR#
 #I386_EXCLUDED#NVIDIA-Linux/libGLESv2_nvidia.so.#VERSION#                 #LIBDIR#
@@ -24,8 +25,8 @@
 #I386_EXCLUDED#NVIDIA-Linux/libnvidia-present.so.#VERSION#                #LIBDIR#
 #I386_EXCLUDED#NVIDIA-Linux/libnvidia-rtcore.so.#VERSION#                 #LIBDIR#
 #I386_EXCLUDED#NVIDIA-Linux/libnvidia-tls.so.#VERSION#                    #LIBDIR#
-#I386_EXCLUDED#NVIDIA-Linux/libnvidia-egl-xcb.so.1.0.4                    #LIBDIR#
-#I386_EXCLUDED#NVIDIA-Linux/libnvidia-egl-xlib.so.1.0.4                   #LIBDIR#
+#I386_EXCLUDED#NVIDIA-Linux/libnvidia-egl-xcb.so.1.0.5                    #LIBDIR#
+#I386_EXCLUDED#NVIDIA-Linux/libnvidia-egl-xlib.so.1.0.5                   #LIBDIR#
 #I386_EXCLUDED#NVIDIA-Linux/libnvoptix.so.#VERSION#                       #LIBDIR#
 #I386_EXCLUDED#NVIDIA-Linux/libnvidia-egl-wayland2.so.1.0.1               #LIBDIR#
 #I386_EXCLUDED#NVIDIA-Linux/nvidia-ngx-updater                            usr/bin
@@ -42,7 +43,7 @@
 #I386_ONLY#NVIDIA-Linux/32/libnvidia-glvkspirv.so.#VERSION#               #LIBDIR#
 #I386_ONLY#NVIDIA-Linux/32/libnvidia-gpucomp.so.#VERSION#                 #LIBDIR#
 #I386_ONLY#NVIDIA-Linux/32/libnvidia-tls.so.#VERSION#                     #LIBDIR#
-#I386_ONLY#NVIDIA-Linux/32/libnvidia-egl-xcb.so.1.0.4                     #LIBDIR#
-#I386_ONLY#NVIDIA-Linux/32/libnvidia-egl-xlib.so.1.0.4                    #LIBDIR#
+#I386_ONLY#NVIDIA-Linux/32/libnvidia-egl-xcb.so.1.0.5                     #LIBDIR#
+#I386_ONLY#NVIDIA-Linux/32/libnvidia-egl-xlib.so.1.0.5                    #LIBDIR#
 #I386_ONLY#NVIDIA-Linux/32/libnvidia-egl-gbm.so.1.1.3                     #LIBDIR#
 #I386_ONLY#NVIDIA-Linux/32/libnvidia-egl-wayland2.so.1.0.1                #LIBDIR#
