@@ -1,3 +1,9 @@
+nvidia-graphics-drivers-595 (595.58.03-0ubuntu0.24.04.4) noble; urgency=medium
+
+  * New upstream release 595.58.03
+
+ -- Andrew Hexen <SyberHexen@gmail.com>  Tue, 24 Mar 2026 19:00:00 -0500
+
 nvidia-graphics-drivers-595 (595.45.04-0ubuntu0.24.04.4) noble; urgency=medium
 
   * New upstream release 595.45.04
