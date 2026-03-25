@@ -62,7 +62,6 @@ struct _CtkImageSliders
     GtkWidget *frame;
 
     GtkWidget *digital_vibrance;
-    GtkWidget *image_sharpening;
 };
 
 struct _CtkImageSlidersClass

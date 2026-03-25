@@ -226,7 +226,7 @@ static Bool LoadNvml(NvCtrlNvmlAttributes *nvml)
     GET_SYMBOL(_REQUIRED, DeviceGetHandleByIndex);
     GET_SYMBOL(_REQUIRED, DeviceGetUUID);
     GET_SYMBOL(_REQUIRED, DeviceGetCount);
-    GET_SYMBOL(_REQUIRED, DeviceGetTemperature);
+    GET_SYMBOL(_REQUIRED, DeviceGetTemperatureV);
     GET_SYMBOL(_REQUIRED, DeviceGetName);
     GET_SYMBOL(_REQUIRED, DeviceGetVbiosVersion);
     GET_SYMBOL(_REQUIRED, DeviceGetMemoryInfo);
@@ -1053,9 +1053,15 @@ static ReturnStatus NvCtrlNvmlGetGPUAttribute(const CtrlTarget *ctrl_target,
                           NVML_TEMPERATURE_THRESHOLD_SHUTDOWN ,&res);
                 break;
             case NV_CTRL_GPU_CORE_TEMPERATURE:
-                ret = nvml->lib.DeviceGetTemperature(device,
-                                                     NVML_TEMPERATURE_GPU,
-                                                     &res);
+                {
+                    nvmlTemperature_t temperature = {
+                        .version = nvmlTemperature_v1,
+                        .sensorType = NVML_TEMPERATURE_GPU,
+                    };
+                    ret = nvml->lib.DeviceGetTemperatureV(device,
+                                                          &temperature);
+                    res = (unsigned)temperature.temperature;
+                }
                 break;
 
             case NV_CTRL_GPU_ECC_CONFIGURATION_SUPPORTED:
@@ -1268,6 +1274,10 @@ static ReturnStatus NvCtrlNvmlGetGPUAttribute(const CtrlTarget *ctrl_target,
                     break;
                 }
 
+            case NV_CTRL_GPU_POWER_MIZER_DEFAULT_MODE:
+                res = NV_CTRL_GPU_POWER_MIZER_MODE_ADAPTIVE;
+                break;
+
             case NV_CTRL_OPERATING_SYSTEM:
 #if defined(NV_LINUX)
                 res = NV_CTRL_OPERATING_SYSTEM_LINUX;
@@ -1298,7 +1308,6 @@ static ReturnStatus NvCtrlNvmlGetGPUAttribute(const CtrlTarget *ctrl_target,
 
             case NV_CTRL_VIDEO_RAM:
             case NV_CTRL_BUS_TYPE:
-            case NV_CTRL_GPU_POWER_MIZER_DEFAULT_MODE:
             case NV_CTRL_ENABLED_DISPLAYS:
             case NV_CTRL_CONNECTED_DISPLAYS:
             case NV_CTRL_MAX_SCREEN_WIDTH:
@@ -2467,6 +2476,7 @@ NvCtrlNvmlGetGPUValidAttributeValues(const CtrlTarget *ctrl_target, int attr,
                 val->valid_type = CTRL_ATTRIBUTE_VALID_TYPE_BITMASK;
                 break;
 
+            case NV_CTRL_GPU_POWER_MIZER_DEFAULT_MODE:
             case NV_CTRL_GPU_POWER_MIZER_MODE:
                 {
                     nvmlDevicePowerMizerModes_v1_t powerMizerMode;
@@ -2477,7 +2487,6 @@ NvCtrlNvmlGetGPUValidAttributeValues(const CtrlTarget *ctrl_target, int attr,
                 }
             case NV_CTRL_VIDEO_RAM:
             case NV_CTRL_BUS_TYPE:
-            case NV_CTRL_GPU_POWER_MIZER_DEFAULT_MODE:
             case NV_CTRL_ENABLED_DISPLAYS:
             case NV_CTRL_CONNECTED_DISPLAYS:
             case NV_CTRL_MAX_SCREEN_WIDTH:
@@ -2771,6 +2780,7 @@ static ReturnStatus NvCtrlNvmlGetIntegerAttributePerms(int attr,
         case NV_CTRL_GPU_MEM_TRANSFER_RATE_OFFSET_ALL_PERFORMANCE_LEVELS:
         case NV_CTRL_GPU_MEM_TRANSFER_RATE_OFFSET:
         case NV_CTRL_GPU_NVCLOCK_OFFSET:
+        case NV_CTRL_GPU_POWER_MIZER_DEFAULT_MODE:
         case NV_CTRL_GPU_POWER_MIZER_MODE:
         /* CTRL_ATTRIBUTE_VALID_TYPE_INT_BITS */
             perms->read = NV_TRUE;

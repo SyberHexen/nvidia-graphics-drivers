@@ -6557,6 +6557,9 @@ GtkTextBuffer *ctk_framelock_create_help(GtkTextTagTable *table)
                   "Configuration' page.  Most notably is the 'Frame Lock "
                   "Connection Status' timer: this will poll all members of "
                   "the frame lock group for status information.");
+    ctk_help_para(b, &i, "NOTE: Due to this polling, "
+                  "performance may be slightly affected "
+                  "when this Frame Lock page is selected.");
 
     ctk_help_finish(b);
 

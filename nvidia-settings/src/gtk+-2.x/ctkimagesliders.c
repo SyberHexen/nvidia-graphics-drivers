@@ -33,9 +33,6 @@
 static const char *__digital_vibrance_help = "The Digital Vibrance slider "
 "alters the level of Digital Vibrance for this display device.";
 
-static const char *__image_sharpening_help = "The Image Sharpening slider "
-"alters the level of Image Sharpening for this display device.";
-
 
 static void ctk_image_sliders_class_init(CtkImageSliders *ctk_object_class, gpointer);
 static void ctk_image_sliders_finalize(GObject *object);
@@ -121,8 +118,6 @@ GtkWidget* ctk_image_sliders_new(CtrlTarget *ctrl_target,
 
     GtkWidget *frame;
     GtkWidget *vbox;
-    ReturnStatus status;
-    gint val;
 
     /*
      * now that we know that we will have at least one attribute,
@@ -164,30 +159,6 @@ GtkWidget* ctk_image_sliders_new(CtrlTarget *ctrl_target,
 
     gtk_box_pack_start(GTK_BOX(vbox), ctk_image_sliders->digital_vibrance,
                        TRUE, TRUE, 0);
-
-    /* Image Sharpening */
-
-    status = NvCtrlGetAttribute(ctrl_target,
-                                NV_CTRL_IMAGE_SHARPENING_DEFAULT,
-                                &val);
-    if (status != NvCtrlSuccess) {
-        val = 0;
-    }
-
-    ctk_image_sliders->image_sharpening =
-        add_scale(ctk_config,
-                  NV_CTRL_IMAGE_SHARPENING, "Image Sharpening",
-                  __image_sharpening_help, G_TYPE_INT, val, ctk_image_sliders);
-
-    g_signal_connect(G_OBJECT(ctk_event),
-                     CTK_EVENT_NAME(NV_CTRL_IMAGE_SHARPENING),
-                     G_CALLBACK(scale_value_received),
-                     (gpointer) ctk_image_sliders);
-
-    gtk_box_pack_start(GTK_BOX(vbox), ctk_image_sliders->image_sharpening,
-                       TRUE, TRUE, 0);
-
-    gtk_widget_show_all(GTK_WIDGET(object));
 
     /* update the GUI */
 
@@ -314,14 +285,6 @@ void ctk_image_sliders_reset(CtkImageSliders *ctk_image_sliders)
         NvCtrlSetAttribute(ctrl_target, NV_CTRL_DIGITAL_VIBRANCE, val);
     }
 
-    if (ctk_widget_get_sensitive(ctk_image_sliders->image_sharpening)) {
-        adj = CTK_SCALE(ctk_image_sliders->image_sharpening)->gtk_adjustment;
-        val = GPOINTER_TO_INT(g_object_get_data(G_OBJECT(adj),
-                                                "attribute default value"));
-
-        NvCtrlSetAttribute(ctrl_target, NV_CTRL_IMAGE_SHARPENING, val);
-    }
-
     /*
      * The above may have triggered events.  Such an event will
      * cause scale_value_changed() and post_scale_value_changed() to
@@ -371,9 +334,6 @@ static void scale_value_received(GObject *object,
     case NV_CTRL_DIGITAL_VIBRANCE:
         scale = ctk_image_sliders->digital_vibrance;
         break;
-    case NV_CTRL_IMAGE_SHARPENING:
-        scale = ctk_image_sliders->image_sharpening;
-        break;
     default:
         return;
     }
@@ -419,12 +379,6 @@ void add_image_sliders_help(CtkImageSliders *ctk_image_sliders,
                   "the color saturation of an image so that all images "
                   "including 2D, 3D, and video appear brighter and "
                   "crisper (even on flat panels) in your applications.");
-
-    ctk_help_heading(b, i, "Image Sharpening");
-    ctk_help_para(b, i, "Use the Image Sharpening slider to adjust the "
-                  "sharpness of the image quality by amplifying high "
-                  "frequency content.");
-    
 } /* add_image_sliders_help() */
 
 
@@ -497,18 +451,6 @@ static void setup_reset_button(CtkImageSliders *ctk_image_sliders)
         }
     }
 
-    scale = ctk_image_sliders->image_sharpening;
-    if (ctk_widget_get_sensitive(scale)) {
-        adj = CTK_SCALE(scale)->gtk_adjustment;
-        current_val = (gint) gtk_adjustment_get_value(adj);
-        default_val =
-            GPOINTER_TO_INT(g_object_get_data(G_OBJECT(adj),
-                                              "attribute default value"));
-        if (current_val != default_val) {
-            goto enable;
-        }
-    }
-
     /* Don't disable reset button here, since other settings that are not
      * managed by the ctk_image_slider here may need it enabled
      */
@@ -534,11 +476,6 @@ void ctk_image_sliders_setup(CtkImageSliders *ctk_image_sliders)
 
     setup_scale(ctk_image_sliders, NV_CTRL_DIGITAL_VIBRANCE,
                 ctk_image_sliders->digital_vibrance);
-
-    /* NV_CTRL_IMAGE_SHARPENING */
-
-    setup_scale(ctk_image_sliders, NV_CTRL_IMAGE_SHARPENING,
-                ctk_image_sliders->image_sharpening);
 
 
     setup_reset_button(ctk_image_sliders);

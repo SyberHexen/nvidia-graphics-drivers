@@ -170,7 +170,7 @@ struct __NvCtrlNvmlAttributes {
         typeof(nvmlDeviceGetHandleByIndex)              (*DeviceGetHandleByIndex);
         typeof(nvmlDeviceGetUUID)                       (*DeviceGetUUID);
         typeof(nvmlDeviceGetCount)                      (*DeviceGetCount);
-        typeof(nvmlDeviceGetTemperature)                (*DeviceGetTemperature);
+        typeof(nvmlDeviceGetTemperatureV)               (*DeviceGetTemperatureV);
         typeof(nvmlDeviceGetName)                       (*DeviceGetName);
         typeof(nvmlDeviceGetVbiosVersion)               (*DeviceGetVbiosVersion);
         typeof(nvmlDeviceGetMemoryInfo)                 (*DeviceGetMemoryInfo);

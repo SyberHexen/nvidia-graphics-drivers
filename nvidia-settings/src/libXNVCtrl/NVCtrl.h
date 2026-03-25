@@ -760,13 +760,10 @@
 
 
 /*
- * IMAGE_SHARPENING adjusts the sharpness of the display's image
- * quality by amplifying high frequency content.  Valid values will
- * normally be in the range [0,32).  Only available on GeForceFX or
- * newer.
+ * NV_CTRL_IMAGE_SHARPENING - not supported
  */
 
-#define NV_CTRL_IMAGE_SHARPENING                                52  /* RWDG */
+#define NV_CTRL_IMAGE_SHARPENING                                52  /* not supported */
 
 
 /*
@@ -2313,11 +2310,10 @@
 #define NV_CTRL_GVO_ENABLE_RGB_DATA_ENABLE                        1
 
 /*
- * NV_CTRL_IMAGE_SHARPENING_DEFAULT - Returns default value of
- * Image Sharpening.
+ * NV_CTRL_IMAGE_SHARPENING_DEFAULT - not supported
  */
 
-#define NV_CTRL_IMAGE_SHARPENING_DEFAULT                        305 /* R-- */
+#define NV_CTRL_IMAGE_SHARPENING_DEFAULT                        305 /* not supported */
 
 /*
  * NV_CTRL_PCI_DOMAIN - Returns the PCI domain number the specified device is
